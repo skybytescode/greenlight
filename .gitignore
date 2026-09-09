@@ -1,0 +1,5 @@
+/bin/
+/tmp/
+.envrc
+*.pem
+.DS_Store
