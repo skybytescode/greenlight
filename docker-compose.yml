@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: greenlight
+      POSTGRES_USER: greenlight
+      POSTGRES_PASSWORD: pa55word
+    ports:
+      - "5432:5432"
+    volumes:
+      - greenlight_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greenlight -d greenlight"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  greenlight_db_data:
