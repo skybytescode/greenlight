@@ -6,6 +6,16 @@ A JSON API for retrieving and managing information about movies, built while wor
 Alex Edwards' *Let's Go Further*. Think of the core functionality as being a bit like the
 [Open Movie Database API](https://www.omdbapi.com/).
 
+![Architecture](docs/images/architecture.png)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Sign-up flow](docs/images/signup-flow.png) Sign up, activate with the emailed token, log in | ![Activation email](docs/images/activation-email.png) The activation email in Mailpit |
+| ![Permissions and limits](docs/images/permissions-and-limits.png) Permissions, filtering, validation and rate limiting | ![Tests](docs/images/tests.png) Unit and integration tests |
+| ![CI](docs/images/ci.png) GitHub Actions: tests against PostgreSQL, then the Docker build | |
+
 ## Endpoints
 
 | Method | URL Pattern                  | Action                                |
