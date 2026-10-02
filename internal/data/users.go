@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/skybytescode/greenlight/internal/validator"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -106,7 +107,7 @@ func (m UserModel) Insert(user *User) error {
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
 	if err != nil {
 		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
+		case isUniqueViolation(err, "users_email_key"):
 			return ErrDuplicateEmail
 		default:
 			return err
@@ -114,6 +115,14 @@ func (m UserModel) Insert(user *User) error {
 	}
 
 	return nil
+}
+
+// isUniqueViolation reports whether err is PostgreSQL's unique_violation
+// (23505) on the given constraint. It checks the error code rather than the
+// message text, which changes between driver versions.
+func isUniqueViolation(err error, constraint string) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == constraint
 }
 
 func (m UserModel) GetByEmail(email string) (*User, error) {
@@ -170,7 +179,7 @@ func (m UserModel) Update(user *User) error {
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
 	if err != nil {
 		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
+		case isUniqueViolation(err, "users_email_key"):
 			return ErrDuplicateEmail
 		case errors.Is(err, sql.ErrNoRows):
 			return ErrEditConflict
