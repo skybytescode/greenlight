@@ -1,3 +1,7 @@
+# `docker compose up -d db` starts only PostgreSQL, for running the API with
+# `make run/api`. `docker compose up --build` runs the whole stack: database,
+# migrations, the API on :4000 and Mailpit, whose inbox at
+# http://localhost:8025 shows the emails the API sends.
 services:
   db:
     image: postgres:16-alpine
@@ -15,6 +19,36 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  migrate:
+    image: migrate/migrate:v4.20.1
+    command: ["-path=/migrations", "-database=postgres://greenlight:pa55word@db/greenlight?sslmode=disable", "up"]
+    volumes:
+      - ./migrations:/migrations:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports:
+      - "8025:8025" # web inbox
+      - "1025:1025" # SMTP
+
+  api:
+    build: .
+    command: ["-cors-trusted-origins=http://localhost:9000"]
+    environment:
+      GREENLIGHT_DB_DSN: postgres://greenlight:pa55word@db/greenlight?sslmode=disable
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    ports:
+      - "4000:4000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
 
 volumes:
   greenlight_db_data:

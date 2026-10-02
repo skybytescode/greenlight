@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: greenlight_test
+          POSTGRES_USER: greenlight
+          POSTGRES_PASSWORD: pa55word
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U greenlight -d greenlight_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GREENLIGHT_TEST_DB_DSN: postgres://greenlight:pa55word@localhost:5432/greenlight_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Vet
+        run: go vet ./...
+      - name: Staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+      - name: Test (unit and integration, race detector)
+        run: go test -race -count=1 ./...
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -t greenlight:${{ github.sha }} .

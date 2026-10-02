@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,11 +54,17 @@ type config struct {
 	}
 }
 
+// mailSender sends a templated email. mailer.Mailer implements it; tests use
+// a fake that records the messages instead of talking to an SMTP server.
+type mailSender interface {
+	Send(recipient, templateFile string, data any) error
+}
+
 type application struct {
 	config config
 	logger *jsonlog.Logger
 	models data.Models
-	mailer mailer.Mailer
+	mailer mailSender
 	wg     sync.WaitGroup
 }
 
@@ -76,10 +83,10 @@ func main() {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
-	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", "", "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", "", "SMTP password")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", envOr("SMTP_HOST", "sandbox.smtp.mailtrap.io"), "SMTP host")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", envIntOr("SMTP_PORT", 25), "SMTP port")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("SMTP_USERNAME"), "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.skybytescode.net>", "SMTP sender")
 
 	flag.Func("cors-trusted-origins", "Trusted CORS origins (space separated)", func(val string) error {
@@ -140,4 +147,20 @@ func openDB(cfg config) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// envOr returns the environment variable key, or fallback when it is unset.
+func envOr(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
+// envIntOr is envOr for integers; a value that is not a number is ignored.
+func envIntOr(key string, fallback int) int {
+	if value, err := strconv.Atoi(os.Getenv(key)); err == nil {
+		return value
+	}
+	return fallback
 }
