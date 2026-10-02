@@ -1,5 +1,7 @@
 # Greenlight
 
+[![CI](https://github.com/skybytescode/greenlight/actions/workflows/ci.yml/badge.svg)](https://github.com/skybytescode/greenlight/actions/workflows/ci.yml)
+
 A JSON API for retrieving and managing information about movies, built while working through
 Alex Edwards' *Let's Go Further*. Think of the core functionality as being a bit like the
 [Open Movie Database API](https://www.omdbapi.com/).
@@ -22,16 +24,57 @@ Alex Edwards' *Let's Go Further*. Think of the core functionality as being a bit
 | POST   | /v1/tokens/activation         | Generate a new activation token        |
 | GET    | /debug/vars                   | Display application metrics            |
 
-## Running locally
+## Run everything with Docker
 
-Requires Go 1.21+ and PostgreSQL (a `docker-compose.yml` is provided for the database).
+```bash
+docker compose up --build
+```
+
+This starts PostgreSQL, applies the migrations, runs the API on `:4000` and
+starts [Mailpit](https://mailpit.axllent.org/), a local mail server. Emails the
+API sends, such as the activation email after sign-up, show up in its inbox at
+http://localhost:8025.
+
+```bash
+curl -X POST localhost:4000/v1/users \
+  -d '{"name":"Maria","email":"maria@example.com","password":"pa55word123"}'
+# open http://localhost:8025, copy the token from the welcome email, then:
+curl -X PUT localhost:4000/v1/users/activated -d '{"token":"<token from the email>"}'
+```
+
+## Tests
+
+```bash
+go test ./...   # unit tests; the integration tests skip themselves
+```
+
+The integration tests in `cmd/api` run the real routes and middleware against
+PostgreSQL: sign-up and activation (with the activation email captured by a
+fake mailer), authentication, permissions, movie CRUD with optimistic locking,
+filtering, sorting and paging, malformed request bodies and rate limiting. They
+need an empty database they are allowed to wipe:
+
+```bash
+docker compose up -d db
+PGPASSWORD=pa55word psql -h localhost -U greenlight -c 'CREATE DATABASE greenlight_test'
+GREENLIGHT_TEST_DB_DSN='postgres://greenlight:pa55word@localhost/greenlight_test?sslmode=disable' \
+  go test -race ./...
+```
+
+[GitHub Actions](.github/workflows/ci.yml) runs gofmt, `go vet`, staticcheck
+and all the tests against a PostgreSQL service container on every push and pull
+request, then builds the Docker image.
+
+## Running locally without Docker for the API
+
+Requires Go 1.26+ and PostgreSQL (`docker compose up -d db` starts one).
 
 ```bash
 cp .envrc.example .envrc
 # edit .envrc with real values, then load it into your shell, e.g.
 source .envrc
 
-docker compose up -d          # starts Postgres on localhost:5432
+docker compose up -d db       # starts Postgres on localhost:5432
 
 # install golang-migrate: https://github.com/golang-migrate/migrate
 make db/migrations/up
